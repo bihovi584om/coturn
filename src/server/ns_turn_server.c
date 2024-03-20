@@ -177,6 +177,8 @@ static int inc_quota(ts_ur_super_session *ss, uint8_t *username) {
     } else {
 
       STRCPY(ss->username, username);
+      // Signal change to add group label to metrics
+      set_usergroup(ss);
 
       ss->quota_used = 1;
     }
@@ -351,6 +353,13 @@ static int good_peer_addr(turn_turnserver *server, const char *realm, ioa_addr *
 
 allocation *get_allocation_ss(ts_ur_super_session *ss) { return &(ss->alloc); }
 
+void set_usergroup(ts_ur_super_session *ss) {
+  char * group = strrchr(username, '#');
+  if group != NULL {
+    strlcpy(usergroup, group, usergroup_size);
+  }
+}
+
 static inline relay_endpoint_session *get_relay_session_ss(ts_ur_super_session *ss, int family) {
   return get_relay_session(&(ss->alloc), family);
 }
@@ -430,6 +439,8 @@ static int turn_session_info_foreachcb(ur_map_key_type key, ur_map_value_type va
   }
   return 0;
 }
+
+// Si
 
 int turn_session_info_copy_from(struct turn_session_info *tsi, ts_ur_super_session *ss) {
   int ret = -1;
@@ -1442,6 +1453,8 @@ static void copy_auth_parameters(ts_ur_super_session *orig_ss, ts_ur_super_sessi
     ss->nonce_expiration_time = orig_ss->nonce_expiration_time;
     memcpy(&(ss->realm_options), &(orig_ss->realm_options), sizeof(ss->realm_options));
     memcpy(ss->username, orig_ss->username, sizeof(ss->username));
+    // Signal change to add group label to metrics
+    memcpy(ss->usergroup, orig_ss->usergroup, sizeof(ss->usergroup));
     ss->hmackey_set = orig_ss->hmackey_set;
     memcpy(ss->hmackey, orig_ss->hmackey, sizeof(ss->hmackey));
     ss->oauth = orig_ss->oauth;
@@ -2931,6 +2944,7 @@ static int inspect_binds(turn_turnserver *server, ioa_net_data *in_buffer, turn_
 
 #if !defined(TURN_NO_PROMETHEUS)
             if (is_channel) {
+              char *[]label = {};
               if (from_client) {
                 prom_observe_rtt_client(diffus);
               } else {
@@ -3451,6 +3465,8 @@ static int check_stun_auth(turn_turnserver *server, ts_ur_super_session *ss, stu
       if (ss->oauth) {
         ss->hmackey_set = 0;
         STRCPY(ss->username, usname);
+        // Signal change to add group label to metrics
+        set_usergroup(ss);
       } else {
         if (method == STUN_METHOD_ALLOCATE) {
           *err_code = 437;
@@ -3463,6 +3479,8 @@ static int check_stun_auth(turn_turnserver *server, ts_ur_super_session *ss, stu
     }
   } else {
     STRCPY(ss->username, usname);
+    // Signal change to add group label to metrics
+    set_usergroup(ss);
   }
 
   {
